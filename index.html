@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía Interactiva del Pisco</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Raleway:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Earthy Neutrals -->
+    <!-- Application Structure Plan: He diseñado la aplicación como una página única con desplazamiento y una barra de navegación fija para facilitar el acceso a las secciones clave: 'Inicio', 'El Origen', 'Los Cócteles' y 'La Elaboración'. Esta estructura transforma la presentación lineal en una experiencia de exploración temática. La sección 'El Origen' utiliza un diseño de dos columnas para una comparación directa de las reclamaciones de Perú y Chile, apoyada por un gráfico de consumo. 'Los Cócteles' emplea tarjetas interactivas para presentar las recetas de forma concisa y atractiva y ahora incluye un generador de cócteles impulsado por IA. 'La Elaboración' utiliza una tabla comparativa clara. Esta arquitectura fue elegida para mejorar la usabilidad, permitiendo a los usuarios digerir y comparar la información compleja de manera más intuitiva y atractiva que en un formato de diapositivas. -->
+    <!-- Visualization & Content Choices: 1. Origen (Perú vs. Chile): Meta -> Comparar. Visualización -> Gráfico de barras de Chart.js para consumo anual y una tabla comparativa HTML para argumentos históricos. Interacción -> Comparación visual directa. Justificación -> El gráfico de barras cuantifica el dominio del consumo de Chile, mientras que la tabla estructura el debate cualitativo de forma clara. 2. Cócteles (Pisco Sour, Chilcano, etc.): Meta -> Informar. Presentación -> Tarjetas HTML/CSS con iconos (🍸). Interacción -> Efecto hover/click (vía JS) para mostrar detalles de la receta. Justificación -> Mantiene la interfaz limpia y fomenta el descubrimiento por parte del usuario. 3. Generador de Cócteles (LLM): Meta -> Crear/Personalizar. Presentación -> Campo de texto para entrada de usuario, botón de activación, área de texto para la salida generada por el LLM. Interacción -> El usuario describe el cóctel deseado, hace clic en el botón y la IA (Gemini API) genera una receta. Justificación -> Proporciona una característica dinámica y atractiva que extiende la utilidad de la aplicación más allá del contenido estático, permitiendo la creatividad del usuario. 4. Proceso de Elaboración: Meta -> Comparar. Presentación -> Tabla HTML/Tailwind. Interacción -> Ninguna, la claridad es el objetivo. Justificación -> Es el método más eficaz para datos técnicos estructurados. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Raleway', sans-serif;
+            background-color: #FDFBF5;
+            color: #4A4A4A;
+        }
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+        }
+        .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #8C6E4D;
+            border-bottom-color: #8C6E4D;
+        }
+        .hero-section {
+            background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('https://images.unsplash.com/photo-1596707323862-23c8e404b9c9?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D') no-repeat center center/cover;
+            height: 60vh;
+        }
+        .card {
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        .section-fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .section-fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .cocktail-card .back-face {
+            display: none;
+        }
+        .cocktail-card.is-flipped .front-face {
+            display: none;
+        }
+        .cocktail-card.is-flipped .back-face {
+            display: block;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #8C6E4D;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: none; /* Hidden by default */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-[#FDFBF5]">
+
+    <nav id="navbar" class="bg-[#FDFBF5] bg-opacity-90 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <h1 class="text-2xl font-bold text-[#8C6E4D]">El Pisco</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#home" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Inicio</a>
+                        <a href="#origen" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">El Origen</a>
+                        <a href="#cocteles" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Los Cócteles</a>
+                        <a href="#elaboracion" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">La Elaboración</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header id="home" class="hero-section flex items-center justify-center text-white">
+        <div class="text-center">
+            <h1 class="text-5xl md:text-7xl font-bold drop-shadow-lg">El Espíritu de los Andes</h1>
+            <p class="mt-4 text-xl md:text-2xl font-light">Una guía interactiva sobre el pisco, su historia y sus cócteles.</p>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <section id="origen" class="py-16 section-fade-in">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold text-[#4A4A4A]">El Origen: Una Historia Compartida</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-gray-600">
+                    El pisco es un aguardiente de uva cuya paternidad es reclamada apasionadamente por Perú y Chile. Ambos países comparten una historia colonial pero han desarrollado legislaciones y culturas distintas en torno a su bebida nacional. Esta sección explora los argumentos y datos clave que definen este fascinante debate.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-start">
+                <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-[#C0392B]">
+                    <h3 class="text-3xl font-bold mb-4">La Reclamación Peruana 🇵🇪</h3>
+                    <p class="mb-2"><strong class="text-[#4A4A4A]">Argumento Principal:</strong> Precedencia histórica y geográfica.</p>
+                    <ul class="list-disc list-inside space-y-2 text-gray-700">
+                        <li>El término "pisco" proviene de la palabra quechua "pisqu", que significa "pájaro", y da nombre a un valle, un río y un puerto en Perú desde la época precolombina.</li>
+                        <li>La producción de aguardiente en la región de Ica y el puerto de Pisco data del siglo XVI.</li>
+                        <li>La Denominación de Origen peruana es estricta: el pisco no se puede añejar en madera y debe destilarse al grado, sin añadir agua.</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-[#2980B9]">
+                    <h3 class="text-3xl font-bold mb-4">La Reclamación Chilena 🇨🇱</h3>
+                    <p class="mb-2"><strong class="text-[#4A4A4A]">Argumento Principal:</strong> Desarrollo industrial y consumo masivo.</p>
+                    <ul class="list-disc list-inside space-y-2 text-gray-700">
+                        <li>El registro más antiguo de la palabra "pisco" en Chile data de 1733 en el Valle de Elqui.</li>
+                        <li>La legislación chilena permite la guarda del pisco en barricas de madera, creando diferentes estilos.</li>
+                        <li>Chile es el mayor productor y consumidor de pisco a nivel mundial, con un consumo per cápita muy superior al peruano.</li>
+                    </ul>
+                </div>
+            </div>
+
+             <div class="mt-16 text-center">
+                <h3 class="text-3xl font-bold mb-4">Consumo Anual de Pisco per Cápita</h3>
+                <p class="mt-2 max-w-2xl mx-auto text-gray-600 mb-8">Un dato clave en el debate es el arraigo cultural medido por el consumo. El gráfico muestra la notable diferencia en el consumo promedio por persona entre ambas naciones.</p>
+                <div class="chart-container bg-white p-4 rounded-lg shadow-lg">
+                    <canvas id="consumptionChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="cocteles" class="py-16 section-fade-in">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold text-[#4A4A4A]">Los Cócteles Icónicos</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-gray-600">
+                    El pisco es la base de cócteles reconocidos mundialmente. Cada uno cuenta una historia y ofrece una experiencia de sabor única. Haga clic en una tarjeta para descubrir la receta y el método de preparación de estas famosas bebidas.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                
+                <div class="cocktail-card card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer">
+                    <div class="front-face p-6">
+                        <div class="text-5xl text-center mb-4">🍸</div>
+                        <h3 class="text-2xl font-bold text-center">Pisco Sour</h3>
+                        <p class="text-center text-gray-600 mt-2">El clásico indiscutible. Clic para ver la receta.</p>
+                    </div>
+                    <div class="back-face p-6">
+                         <h4 class="text-xl font-bold mb-2">Ingredientes:</h4>
+                         <ul class="list-disc list-inside text-sm text-gray-700 mb-4">
+                            <li>3 partes de Pisco</li>
+                            <li>1 parte de jugo de limón fresco</li>
+                            <li>1 parte de jarabe de goma</li>
+                            <li>1 clara de huevo</li>
+                            <li>Amargo de Angostura</li>
+                         </ul>
+                         <h4 class="text-xl font-bold mb-2">Preparación:</h4>
+                         <p class="text-sm text-gray-700">Agitar todos los ingredientes (excepto el amargo) en una coctelera con hielo. Servir en vaso frío y decorar con 3 gotas de amargo.</p>
+                    </div>
+                </div>
+                
+                <div class="cocktail-card card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer">
+                     <div class="front-face p-6">
+                        <div class="text-5xl text-center mb-4">🍹</div>
+                        <h3 class="text-2xl font-bold text-center">Chilcano</h3>
+                        <p class="text-center text-gray-600 mt-2">Refrescante y versátil. Clic para ver la receta.</p>
+                    </div>
+                    <div class="back-face p-6">
+                         <h4 class="text-xl font-bold mb-2">Ingredientes:</h4>
+                         <ul class="list-disc list-inside text-sm text-gray-700 mb-4">
+                            <li>2 oz de Pisco</li>
+                            <li>Jugo de ½ limón</li>
+                            <li>Ginger Ale</li>
+                            <li>Gotas de Amargo de Angostura (opcional)</li>
+                         </ul>
+                         <h4 class="text-xl font-bold mb-2">Preparación:</h4>
+                         <p class="text-sm text-gray-700">En un vaso alto con hielo, verter el pisco y el jugo de limón. Completar con Ginger Ale y decorar con una rodaja de limón.</p>
+                    </div>
+                </div>
+
+                <div class="cocktail-card card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer">
+                     <div class="front-face p-6">
+                        <div class="text-5xl text-center mb-4">🥂</div>
+                        <h3 class="text-2xl font-bold text-center">Pisco Punch</h3>
+                        <p class="text-center text-gray-600 mt-2">Un clásico histórico. Clic para ver la receta.</p>
+                    </div>
+                    <div class="back-face p-6">
+                         <h4 class="text-xl font-bold mb-2">Ingredientes:</h4>
+                         <ul class="list-disc list-inside text-sm text-gray-700 mb-4">
+                            <li>2 oz de Pisco</li>
+                            <li>1 oz de jugo de piña</li>
+                            <li>½ oz de jugo de limón</li>
+                            <li>½ oz de jarabe simple</li>
+                         </ul>
+                         <h4 class="text-xl font-bold mb-2">Preparación:</h4>
+                         <p class="text-sm text-gray-700">Agitar todos los ingredientes con hielo y colar en una copa fría. Decorar con un trozo de piña.</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-16 bg-white p-8 rounded-lg shadow-md">
+                <h3 class="text-3xl font-bold text-center mb-6">Generador de Cócteles con Pisco ✨</h3>
+                <p class="text-center text-gray-600 mb-6">¿Buscas algo nuevo? Describe el cóctel que te gustaría crear (ej. "Refrescante, con sabor a frutas tropicales y un toque picante" o "Con Pisco, albahaca y durazno"), y la IA te sugerirá una receta.</p>
+                <div class="flex flex-col items-center gap-4">
+                    <textarea id="cocktailDescription" class="w-full max-w-xl p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8C6E4D]" rows="4" placeholder="Describe tu cóctel ideal..."></textarea>
+                    <button id="generateCocktailBtn" class="bg-[#8C6E4D] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#6E593D] transition-colors flex items-center justify-center gap-2">
+                        Generar Receta ✨
+                        <div id="loader" class="loader ml-2"></div>
+                    </button>
+                    <div id="cocktailResult" class="w-full max-w-xl mt-6 p-6 bg-gray-50 rounded-lg border border-gray-200 text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        <!-- Receta generada aparecerá aquí -->
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="elaboracion" class="py-16 section-fade-in">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold text-[#4A4A4A]">Diferencias en la Elaboración</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-gray-600">
+                    Las legislaciones de Perú y Chile establecen diferencias fundamentales en la producción del pisco. Estas normativas definen el carácter único del destilado de cada país, desde las uvas permitidas hasta el proceso de destilación y reposo.
+                </p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white shadow-md rounded-lg">
+                    <thead class="bg-[#8C6E4D] text-white">
+                        <tr>
+                            <th class="py-3 px-6 text-left">Criterio</th>
+                            <th class="py-3 px-6 text-left">Pisco Peruano</th>
+                            <th class="py-3 px-6 text-left">Pisco Chileno</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-700">
+                        <tr class="border-b">
+                            <td class="py-4 px-6 font-semibold">Uvas Permitidas</td>
+                            <td class="py-4 px-6">8 variedades (ej. Quebranta, Italia, Moscatel, Torontel)</td>
+                            <td class="py-4 px-6">13 variedades (ej. Moscatel de Austria, Pedro Jiménez, Torontel)</td>
+                        </tr>
+                        <tr class="bg-gray-50 border-b">
+                            <td class="py-4 px-6 font-semibold">Destilación</td>
+                            <td class="py-4 px-6">Una sola destilación, discontinua. Se destila al grado alcohólico final.</td>
+                            <td class="py-4 px-6">Se permite más de una destilación. Se puede añadir agua desmineralizada para ajustar el grado.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 px-6 font-semibold">Corte de Destilación</td>
+                            <td class="py-4 px-6">Sin corte (se usa todo el resultado de la destilación).</td>
+                            <td class="py-4 px-6">Se utiliza solo el "corazón" o parte central del destilado.</td>
+                        </tr>
+                        <tr class="bg-gray-50 border-b">
+                            <td class="py-4 px-6 font-semibold">Reposo / Crianza</td>
+                            <td class="py-4 px-6">Reposo mínimo de 3 meses en recipientes inertes (vidrio, acero) que no alteren el sabor.</td>
+                            <td class="py-4 px-6">Puede reposar en recipientes de madera (roble, raulí), lo que aporta color y sabor.</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-4 px-6 font-semibold">Adición de Agua</td>
+                            <td class="py-4 px-6">Prohibido.</td>
+                            <td class="py-4 px-6">Permitido para alcanzar el grado alcohólico deseado.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-16">
+        <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+            <p>Guía Interactiva del Pisco &copy; 2025</p>
+            <p class="text-sm text-gray-400 mt-2">Una exploración digital del espíritu de los Andes.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('consumptionChart').getContext('2d');
+            const consumptionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Chile', 'Perú'],
+                    datasets: [{
+                        label: 'Consumo Anual (Litros per cápita)',
+                        data: [3.0, 0.5],
+                        backgroundColor: [
+                            'rgba(41, 128, 185, 0.6)',
+                            'rgba(192, 57, 43, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(41, 128, 185, 1)',
+                            'rgba(192, 57, 43, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Litros'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ' + context.raw + ' L';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('section, header');
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.querySelector(this.getAttribute('href')).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                });
+            });
+
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.5
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        document.querySelector('.nav-link.active')?.classList.remove('active');
+                        document.querySelector(`a[href="#${id}"]`)?.classList.add('active');
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+            
+            const fadeInSections = document.querySelectorAll('.section-fade-in');
+            const fadeInObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            fadeInSections.forEach(section => {
+                fadeInObserver.observe(section);
+            });
+
+            const cocktailCards = document.querySelectorAll('.cocktail-card');
+            cocktailCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    card.classList.toggle('is-flipped');
+                });
+            });
+
+            // Gemini API Integration for Cocktail Generator
+            const cocktailDescriptionInput = document.getElementById('cocktailDescription');
+            const generateCocktailBtn = document.getElementById('generateCocktailBtn');
+            const cocktailResultDiv = document.getElementById('cocktailResult');
+            const loader = document.getElementById('loader');
+
+            generateCocktailBtn.addEventListener('click', async () => {
+                const promptText = cocktailDescriptionInput.value.trim();
+                if (!promptText) {
+                    cocktailResultDiv.textContent = "Por favor, describe el cóctel que te gustaría.";
+                    return;
+                }
+
+                loader.style.display = 'block';
+                generateCocktailBtn.disabled = true;
+                cocktailResultDiv.textContent = '';
+
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: `Eres un mixólogo experto. Basado en la siguiente descripción, sugiere una receta de cóctel con Pisco. Incluye el nombre del cóctel, ingredientes y preparación. Descripción: "${promptText}"` }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        cocktailResultDiv.textContent = text;
+                    } else {
+                        cocktailResultDiv.textContent = "No pude generar una receta. Intenta con otra descripción.";
+                    }
+                } catch (error) {
+                    console.error("Error al llamar a la API de Gemini:", error);
+                    cocktailResultDiv.textContent = "Ocurrió un error al generar la receta. Por favor, inténtalo de nuevo más tarde.";
+                } finally {
+                    loader.style.display = 'none';
+                    generateCocktailBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
